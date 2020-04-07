@@ -40,10 +40,13 @@ public:
 	AOSCSpoutCamActor();
 
 	UPROPERTY(EditInstanceOnly, Category = "OSCCamera")
-		int OSCPort = 12000;
+	int OSCPort = 12000;
 
 	UPROPERTY(EditInstanceOnly, Category = "OSCCamera")
-		FName PublishName = "OSCSpoutCam";
+	FName PublishName = "OSCSpoutCam";
+
+	UPROPERTY(EditInstanceOnly, Category = "OSCCamera")
+	bool AutoSetViewTargetWhenBeginPlay = true;
 
 	void BeginPlay() override;
 	void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

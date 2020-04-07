@@ -15,6 +15,41 @@ public class OSCSpoutCam : ModuleRules
 		get { return Path.GetFullPath(Path.Combine(ModulePath, "../../ThirdParty/")); }
 	}
 
+	public string GetUProjectPath()
+	{
+		return Path.Combine(ModuleDirectory, "../../../..");
+	}
+
+	private string CopyToProjectBinaries(string Filepath, ReadOnlyTargetRules Target)
+	{
+		string BinariesDir = Path.Combine(GetUProjectPath(), "Binaries", Target.Platform.ToString());
+		string Filename = Path.GetFileName(Filepath);
+
+		//convert relative path 
+		string FullBinariesDir = Path.GetFullPath(BinariesDir);
+
+		if (!Directory.Exists(FullBinariesDir))
+		{
+			Directory.CreateDirectory(FullBinariesDir);
+		}
+
+		string FullExistingPath = Path.Combine(FullBinariesDir, Filename);
+		bool ValidFile = false;
+
+		//File exists, check if they're the same
+		if (File.Exists(FullExistingPath))
+		{
+			ValidFile = true;
+		}
+
+		//No valid existing file found, copy new dll
+		if (!ValidFile)
+		{
+			File.Copy(Filepath, Path.Combine(FullBinariesDir, Filename), true);
+		}
+		return FullExistingPath;
+	}
+
 	public OSCSpoutCam(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
@@ -72,7 +107,10 @@ public class OSCSpoutCam : ModuleRules
 			string PlatformString = (Target.Platform == UnrealTargetPlatform.Win64) ? "amd64" : "x86";
 			PublicAdditionalLibraries.Add(Path.Combine(ThirdPartyPath, "Spout/lib", PlatformString, "Spout.lib"));
 
-			RuntimeDependencies.Add(new RuntimeDependency(Path.Combine(ThirdPartyPath, "Spout/lib", PlatformString, "Spout.dll")));
+			string pluginDLLPath = Path.Combine(ThirdPartyPath, "Spout", "lib", PlatformString, "Spout.dll");
+			string binariesPath = CopyToProjectBinaries(pluginDLLPath, Target);
+			System.Console.WriteLine("Using Spout DLL: " + binariesPath);
+			RuntimeDependencies.Add(binariesPath);
 
 			// Delay-load the DLL, so we can load it from the right place first
 			PublicDelayLoadDLLs.Add(Path.Combine(ThirdPartyPath, "Spout/lib", PlatformString, "Spout.dll"));

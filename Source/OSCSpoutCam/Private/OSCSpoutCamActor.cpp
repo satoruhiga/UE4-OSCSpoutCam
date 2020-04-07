@@ -6,10 +6,10 @@
 #include <string>
 #include <oscpp/server.hpp>
 
-#include "AllowWindowsPlatformTypes.h" 
+#include "Windows/AllowWindowsPlatformTypes.h" 
 #include <d3d11.h>
 #include "Spout.h"
-#include "HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -108,9 +108,16 @@ void AOSCSpoutCamActor::BeginPlay()
 
 	context.Reset();
 
-	GWorld->GetFirstPlayerController()->bShowMouseCursor = 1;
-	GWorld->GetFirstPlayerController()->bEnableMouseOverEvents = 0;
-	GWorld->GetFirstPlayerController()->bEnableClickEvents = 0;
+	auto PC = GWorld->GetFirstPlayerController();
+
+	PC->bShowMouseCursor = 1;
+	PC->bEnableMouseOverEvents = 0;
+	PC->bEnableClickEvents = 0;
+
+	if (AutoSetViewTargetWhenBeginPlay)
+	{
+		PC->SetViewTarget(this);
+	}
 }
 
 void AOSCSpoutCamActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -124,12 +131,12 @@ void AOSCSpoutCamActor::Tick(float DeltaSeconds)
 {
 	ASceneCapture2D::Tick(DeltaSeconds);
 
-	FMatrix Modelview, Projection;
+	FMatrix _Modelview, _Projection;
 
 	{
 		std::lock_guard<std::mutex> lock(this->mutex);
-		Modelview = this->Modelview.GetTransposed();
-		Projection = this->Projection.GetTransposed();
+		_Modelview = this->Modelview.GetTransposed();
+		_Projection = this->Projection.GetTransposed();
 	}
 
 	// update modelview
@@ -142,7 +149,7 @@ void AOSCSpoutCamActor::Tick(float DeltaSeconds)
 		mat.M[1][0] = 1, mat.M[1][1] = 0, mat.M[1][2] = 0;
 		mat.M[2][0] = 0, mat.M[2][1] = 1, mat.M[2][2] = 0;
 
-		FMatrix ConvertedModelView = model_gl_to_ue4 * Modelview * model_gl_to_ue4.GetTransposed();
+		FMatrix ConvertedModelView = model_gl_to_ue4 * _Modelview * model_gl_to_ue4.GetTransposed();
 		ConvertedModelView.ScaleTranslation(FVector(100));
 
 		this->SetActorTransform(FTransform(ConvertedModelView), true);
@@ -150,7 +157,7 @@ void AOSCSpoutCamActor::Tick(float DeltaSeconds)
 
 	// update projection
 	{
-		auto M = Projection;
+		auto M = _Projection;
 
 		M.M[2][3] *= -1;
 		M.M[2][2] *= 0;
@@ -160,8 +167,14 @@ void AOSCSpoutCamActor::Tick(float DeltaSeconds)
 		M.M[2][1] *= -1;
 
 		USceneCaptureComponent2D* SC = this->GetCaptureComponent2D();
-		SC->bUseCustomProjectionMatrix = true;
-		SC->CustomProjectionMatrix = M;
+		if (M.M[0][0] > 0 && M.M[1][1] > 0) {
+			SC->bUseCustomProjectionMatrix = true;
+			SC->CustomProjectionMatrix = M;
+		}
+		else
+		{
+			SC->bUseCustomProjectionMatrix = false;
+		}
 	}
 
 	//////////////////////////////////////////////////////////////////////////
@@ -246,6 +259,8 @@ void handlePacket(AOSCSpoutCamActor* self, const OSCPP::Server::Packet& packet)
 		if (std::string("/model") == addr)
 		{
 			FMatrix m;
+			m.SetIdentity();
+
 			m.M[0][0] = args.float32();
 			m.M[0][1] = args.float32();
 			m.M[0][2] = args.float32();
@@ -271,6 +286,8 @@ void handlePacket(AOSCSpoutCamActor* self, const OSCPP::Server::Packet& packet)
 		else if (std::string("/proj") == addr)
 		{
 			FMatrix m;
+			m.SetIdentity();
+
 			m.M[0][0] = args.float32();
 			m.M[0][1] = args.float32();
 			m.M[0][2] = args.float32();
